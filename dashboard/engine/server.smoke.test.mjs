@@ -23,6 +23,8 @@ test('real-time trend-line risk selects only 10x 8x 6x 4x 2x and caps trend drop
 
 test('dashboard write actions always use POST',async()=>{
  const source=await readFile('app/page.tsx','utf8');
+ assert.match(source,/const API='\/api'/);
+ assert.doesNotMatch(source,/localhost:3001\/api/);
  assert.match(source,/method:'POST'/);
  assert.doesNotMatch(source,/method:body\?'POST':'GET'/);
  assert.match(source,/等待5m站上趋势线/);
