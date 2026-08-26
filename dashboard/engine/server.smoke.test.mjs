@@ -25,7 +25,7 @@ test('dashboard write actions always use POST',async()=>{
  assert.match(source,/method:'POST'/);
  assert.doesNotMatch(source,/method:body\?'POST':'GET'/);
  assert.match(source,/等待5m站上趋势线/);
- assert.match(source,/五周期合格 ·/);
+ assert.match(source,/首位目标合格 ·/);
 });
 
 test('entry accepts an already-established 5m uptrend',async()=>{
@@ -41,11 +41,13 @@ test('background polling does not overwrite a newly selected account mode',async
  assert.doesNotMatch(source,/setS\(d\);setMode\(d\.mode\);setParams/);
 });
 
-test('market reads retry safely and one failed rank does not block entry scanning',async()=>{
+test('market reads retry safely and entry locks the first five-period target',async()=>{
  const source=await readFile('engine/server.mjs','utf8');
  assert.match(source,/maxAttempts=method==='GET'&&!signed\?3:1/);
  assert.match(source,/validCloseTimes=state\.ranking\.map/);
- assert.match(source,/执行失败，继续检查下一名/);
+ assert.match(source,/const target=state\.ranking\.find/);
+ assert.match(source,/锁定目标 .* 执行失败，保持空仓/);
+ assert.doesNotMatch(source,/执行失败，继续检查下一名/);
  assert.match(source,/state\.exchangeInfo=tradingInfo/);
  assert.match(source,/Math\.max\(\.\.\.validCloseTimes\)/);
 });
