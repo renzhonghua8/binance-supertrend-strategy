@@ -31,3 +31,10 @@ test('market reads retry safely and one failed rank does not block entry scannin
  assert.match(source,/validCloseTimes=state\.ranking\.map/);
  assert.match(source,/Math\.max\(\.\.\.validCloseTimes\)/);
 });
+
+test('ranking always comes from production futures while testnet support only controls tradability',async()=>{
+ const source=await readFile('engine/server.mjs','utf8');
+ assert.match(source,/productionLive=new Set\(productionInfo\.symbols/);
+ assert.match(source,/top=tickers\.filter\(t=>productionLive\.has\(t\.symbol\)\)/);
+ assert.match(source,/eligible:tradable&&!failed/);
+});
