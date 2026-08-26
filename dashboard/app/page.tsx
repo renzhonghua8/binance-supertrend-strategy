@@ -14,7 +14,7 @@ const time=(v:string|null)=>v?new Date(v).toLocaleTimeString('zh-CN',{hour12:fal
 export default function Home(){
  const[s,setS]=useState<Snapshot>(EMPTY),[mode,setMode]=useState<Mode>('paper'),[apiKey,setApiKey]=useState(''),[secret,setSecret]=useState(''),[unlock,setUnlock]=useState(''),[busy,setBusy]=useState(''),[notice,setNotice]=useState('');
  const[params,setParams]=useState(EMPTY.config);
- const call=async(path:string,body?:unknown)=>{setBusy(path);setNotice('');try{const r=await fetch(`${API}${path}`,{method:body?'POST':'GET',headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});const data=await r.json();if(!r.ok)throw new Error(data.error||'操作失败');if(data.snapshot)setS(data.snapshot);setNotice(data.message||'已完成')}catch(e){setNotice(e instanceof Error?e.message:'操作失败')}finally{setBusy('')}};
+ const call=async(path:string,body?:unknown)=>{setBusy(path);setNotice('');try{const r=await fetch(`${API}${path}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body??{})});const data=await r.json();if(!r.ok)throw new Error(data.error||'操作失败');if(data.snapshot)setS(data.snapshot);setNotice(data.message||'已完成')}catch(e){setNotice(e instanceof Error?e.message:'操作失败')}finally{setBusy('')}};
  useEffect(()=>{const poll=async()=>{try{const r=await fetch(`${API}/snapshot`);if(r.ok){const d=await r.json();setS(d);setMode(d.mode);setParams(d.config)}}catch{}};poll();const id=setInterval(poll,3000);return()=>clearInterval(id)},[]);
  const active=useMemo(()=>s.ranking.filter(r=>r.eligible).length,[s.ranking]);
  const connect=()=>call('/connect',{mode,apiKey:apiKey.trim(),secretKey:secret.trim(),liveUnlock:unlock});
