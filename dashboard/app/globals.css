@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 .entry-signal{display:inline-block;padding:5px 8px;border-radius:6px;background:#172019;color:#c8f34a;font-weight:800}
+.leverage-plan{display:inline-block;padding:5px 7px;border-radius:6px;font-size:9px;font-weight:700}.leverage-plan.valid{background:#eef5dd;color:#64870f}.leverage-plan.invalid{background:#fff0e3;color:#b46717}
 .line-distance{display:inline-block;padding:4px 7px;border-radius:6px;font-size:9px;font-weight:700}.line-distance.above{color:#6a8f10;background:#f0f7df}.line-distance.below{color:#b26c16;background:#fff3df}
 .watch-amplitude{margin-top:11px;padding:9px 10px;border-radius:9px;background:#eef5dd;display:flex;align-items:center;justify-content:space-between;gap:8px}.watch-amplitude span{font-size:8px;color:#78856e}.watch-amplitude b{font-size:10px;color:#61820f;white-space:nowrap}.watch-amplitude.crossed{background:#e3f5e9}.watch-amplitude.crossed b{color:#087846}.nearest .watch-amplitude{background:#2b372f}.nearest .watch-amplitude span{color:#a9b0ab}.nearest .watch-amplitude b{color:#c8f34a}
 .actions .start{background:#171b18;color:#fff;border-color:#171b18}
