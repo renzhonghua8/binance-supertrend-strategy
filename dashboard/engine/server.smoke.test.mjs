@@ -19,6 +19,12 @@ test('dashboard write actions always use POST',async()=>{
  assert.doesNotMatch(source,/method:body\?'POST':'GET'/);
 });
 
+test('background polling does not overwrite a newly selected account mode',async()=>{
+ const source=await readFile('app/page.tsx','utf8');
+ assert.match(source,/if\(!initialized\.current\)/);
+ assert.doesNotMatch(source,/setS\(d\);setMode\(d\.mode\);setParams/);
+});
+
 test('market reads retry safely and one failed rank does not block entry scanning',async()=>{
  const source=await readFile('engine/server.mjs','utf8');
  assert.match(source,/maxAttempts=method==='GET'&&!signed\?3:1/);

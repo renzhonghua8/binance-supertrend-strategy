@@ -1,5 +1,5 @@
 'use client';
-import {useEffect,useMemo,useState} from 'react';
+import {useEffect,useMemo,useRef,useState} from 'react';
 
 type Mode='paper'|'testnet'|'live';
 type Signal={above:boolean,line:number|null,close:number|null,atr:number|null};
@@ -14,8 +14,9 @@ const time=(v:string|null)=>v?new Date(v).toLocaleTimeString('zh-CN',{hour12:fal
 export default function Home(){
  const[s,setS]=useState<Snapshot>(EMPTY),[mode,setMode]=useState<Mode>('paper'),[apiKey,setApiKey]=useState(''),[secret,setSecret]=useState(''),[unlock,setUnlock]=useState(''),[busy,setBusy]=useState(''),[notice,setNotice]=useState('');
  const[params,setParams]=useState(EMPTY.config);
- const call=async(path:string,body?:unknown)=>{setBusy(path);setNotice('');try{const r=await fetch(`${API}${path}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body??{})});const data=await r.json();if(!r.ok)throw new Error(data.error||'操作失败');if(data.snapshot)setS(data.snapshot);setNotice(data.message||'已完成')}catch(e){setNotice(e instanceof Error?e.message:'操作失败')}finally{setBusy('')}};
- useEffect(()=>{const poll=async()=>{try{const r=await fetch(`${API}/snapshot`);if(r.ok){const d=await r.json();setS(d);setMode(d.mode);setParams(d.config)}}catch{}};poll();const id=setInterval(poll,3000);return()=>clearInterval(id)},[]);
+ const initialized=useRef(false);
+ const call=async(path:string,body?:unknown)=>{setBusy(path);setNotice('');try{const r=await fetch(`${API}${path}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body??{})});const data=await r.json();if(!r.ok)throw new Error(data.error||'操作失败');if(data.snapshot){setS(data.snapshot);setMode(data.snapshot.mode);setParams(data.snapshot.config)}setNotice(data.message||'已完成')}catch(e){setNotice(e instanceof Error?e.message:'操作失败')}finally{setBusy('')}};
+ useEffect(()=>{const poll=async()=>{try{const r=await fetch(`${API}/snapshot`);if(r.ok){const d=await r.json();setS(d);if(!initialized.current){initialized.current=true;setMode(d.mode);setParams(d.config)}}}catch{}};poll();const id=setInterval(poll,3000);return()=>clearInterval(id)},[]);
  const active=useMemo(()=>s.ranking.filter(r=>r.eligible).length,[s.ranking]);
  const watchlist=useMemo(()=>s.ranking.flatMap(r=>{const sig=r.signals['5m'];if(!r.eligible||!sig||sig.above||sig.line==null||sig.close==null||!sig.atr)return[];const gap=Math.max(0,sig.line-sig.close);return[{...r,gapPrice:gap,gapPct:sig.close?gap/sig.close*100:0,gapAtr:gap/sig.atr,trigger:sig.line}]}).sort((a,b)=>a.gapAtr-b.gapAtr||a.rank-b.rank).slice(0,5),[s.ranking]);
  const connect=()=>call('/connect',{mode,apiKey:apiKey.trim(),secretKey:secret.trim(),liveUnlock:unlock});
