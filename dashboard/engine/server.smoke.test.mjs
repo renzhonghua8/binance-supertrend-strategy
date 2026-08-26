@@ -44,5 +44,7 @@ test('ranking always comes from production futures while testnet support only co
 test('latest prices refresh between completed-candle indicator updates',async()=>{
  const source=await readFile('engine/server.mjs','utf8');
  assert.match(source,/async function refreshPrices\(\)/);
- assert.match(source,/await refreshRanking\(\);await refreshPrices\(\)/);
+ assert.match(source,/const MARKET_STREAM='wss:\/\/fstream\.binance\.com\/market\/ws\/!ticker@arr'/);
+ assert.match(source,/if\(streamStale\)await refreshPrices\(\)/);
+ assert.match(source,/setTimeout\(startMarketStream,delay\)/);
 });
