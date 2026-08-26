@@ -14,10 +14,10 @@ test('engine exposes safe default state and validates config',async()=>{
  const bad=await fetch(`http://127.0.0.1:${port}/api/config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({maxRiskPct:21})});assert.equal(bad.status,400);
  const good=await fetch(`http://127.0.0.1:${port}/api/config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({maxRiskPct:18,maxStopDropPct:9,hardStopAtr:1.2})});assert.equal(good.status,200);const result=await good.json();assert.equal(result.snapshot.config.maxRiskPct,18);assert.equal(result.snapshot.config.maxStopDropPct,9);assert.equal(result.snapshot.config.hardStopAtr,1.2)}finally{child?.kill('SIGINT')}});
 
-test('real-time hard-stop risk selects only 10x 5x 3x 1x and caps stop drop at 10%',()=>{
- assert.equal(riskLeverage(2,20),10);assert.equal(riskLeverage(2.01,20),5);assert.equal(riskLeverage(4,20),5);assert.equal(riskLeverage(4.01,20),3);assert.equal(riskLeverage(20/3,20),3);assert.equal(riskLeverage(6.67,20),1);assert.equal(riskLeverage(10,20),1);
+test('real-time hard-stop risk selects only 10x 8x 6x 4x 2x and caps stop drop at 10%',()=>{
+ assert.equal(riskLeverage(2,20),10);assert.equal(riskLeverage(2.01,20),8);assert.equal(riskLeverage(2.5,20),8);assert.equal(riskLeverage(2.51,20),6);assert.equal(riskLeverage(10/3,20),6);assert.equal(riskLeverage(3.34,20),4);assert.equal(riskLeverage(5,20),4);assert.equal(riskLeverage(5.01,20),2);assert.equal(riskLeverage(10,20),2);
  const ten=leveragePlan({close:100,line:99,atr:1},100,{maxRiskPct:20,maxStopDropPct:10,hardStopAtr:1});assert.equal(ten.valid,true);assert.equal(ten.finalLeverage,10);assert.equal(ten.riskPct,20);
- const five=leveragePlan({close:100,line:98,atr:1},100,{maxRiskPct:20,maxStopDropPct:10,hardStopAtr:1});assert.equal(five.finalLeverage,5);assert.equal(five.riskPct,15);
+ const eight=leveragePlan({close:100,line:98,atr:.5},100,{maxRiskPct:20,maxStopDropPct:10,hardStopAtr:1});assert.equal(eight.finalLeverage,8);assert.equal(eight.riskPct,20);
  const skipped=leveragePlan({close:100,line:95,atr:6},100,{maxRiskPct:20,maxStopDropPct:10,hardStopAtr:1});assert.equal(skipped.valid,false);assert.equal(skipped.finalLeverage,0);assert.match(skipped.reason,/超过10%/);
 });
 

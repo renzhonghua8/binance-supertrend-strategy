@@ -1,4 +1,4 @@
-export const LEVERAGE_LEVELS=[10,5,3,1];
+export const LEVERAGE_LEVELS=[10,8,6,4,2];
 
 export function riskLeverage(stopDropPct,maxRiskPct=20){
  if(!Number.isFinite(stopDropPct)||stopDropPct<=0)return 0;
@@ -16,6 +16,6 @@ export function leveragePlan(sig,livePrice=sig?.close,{maxRiskPct=20,maxStopDrop
  const details={referencePrice:livePrice,distancePct,liveLineDistancePct,hardStop,hardStopDistancePct,riskLeverage:finalLeverage,finalLeverage,riskPct};
  if(livePrice<=sig.line)return{valid:false,reason:'实时价格尚未站上5m趋势线',...details,finalLeverage:0,riskPct:0};
  if(hardStopDistancePct>maxStopDropPct)return{valid:false,reason:`实时止损跌幅超过${maxStopDropPct}%`,...details,finalLeverage:0,riskPct:0};
- if(finalLeverage<1)return{valid:false,reason:'1倍杠杆风险仍超过上限',...details,finalLeverage:0,riskPct:0};
+ if(finalLeverage<2)return{valid:false,reason:'2倍杠杆风险仍超过上限',...details,finalLeverage:0,riskPct:0};
  return{valid:true,reason:'实时风险合格',...details};
 }
