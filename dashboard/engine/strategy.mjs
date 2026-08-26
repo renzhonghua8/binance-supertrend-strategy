@@ -16,7 +16,7 @@ export function leveragePlan(sig,{maxRiskPct=10,hardStopAtr=1}={}){
  const finalLeverage=Math.min(base,riskLeverage,5);
  const riskPct=hardStopDistancePct*finalLeverage;
  const details={distancePct,baseLeverage:base,hardStop,hardStopDistancePct,riskLeverage,finalLeverage,riskPct};
- if(base===0)return{valid:false,reason:distancePct<0?'5m尚未突破':'可回撤不小于10%',...details,finalLeverage:0,riskPct:0};
+ if(base===0)return{valid:false,reason:distancePct<0?'5m尚未站上线':'从5m收盘回落至趋势线的跌幅不小于10%',...details,finalLeverage:0,riskPct:0};
  if(riskLeverage<1)return{valid:false,reason:'1倍杠杆风险仍超过上限',...details,finalLeverage:0,riskPct:0};
  return{valid:true,reason:'风险合格',...details};
 }
