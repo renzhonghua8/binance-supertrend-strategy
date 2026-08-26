@@ -11,23 +11,41 @@
 
 ```bash
 cat /etc/centos-release
-node --version || true
-npm --version || true
 git --version || true
 sudo ss -lntp | grep -E ':(3109|3110|3111)\b' || true
 ```
 
 如果最后一条有任何输出，说明端口已被占用。停止部署并更换本项目内部端口，不要结束已有进程。
 
-Node.js必须为22.13或更高版本。缺少依赖时才安装：
+只安装下载工具，不安装或升级系统Node.js：
 
 ```bash
 sudo dnf install -y git curl ca-certificates
-curl -fsSL https://rpm.nodesource.com/setup_22.x | sudo bash -
-sudo dnf install -y nodejs
 ```
 
-CentOS 7把上面的 `dnf` 换成 `yum`。安装后再次执行 `node --version`，必须是22.13或更高版本。
+CentOS 7把 `dnf` 换成 `yum`。
+
+安装本项目独享的Node.js 22，不覆盖 `/usr/bin/node`：
+
+```bash
+cd /tmp
+NODE_VERSION=v22.23.2
+case "$(uname -m)" in
+  x86_64) NODE_ARCH=x64 ;;
+  aarch64) NODE_ARCH=arm64 ;;
+  *) echo "不支持的CPU架构：$(uname -m)"; exit 1 ;;
+esac
+NODE_FILE="node-${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz"
+curl -fSLO "https://nodejs.org/dist/${NODE_VERSION}/${NODE_FILE}"
+curl -fSLO "https://nodejs.org/dist/${NODE_VERSION}/SHASUMS256.txt"
+grep " ${NODE_FILE}$" SHASUMS256.txt | sha256sum -c -
+sudo mkdir -p /opt/trend-runtime
+sudo tar -xJf "$NODE_FILE" -C /opt/trend-runtime
+sudo ln -sfn "/opt/trend-runtime/node-${NODE_VERSION}-linux-${NODE_ARCH}" /opt/trend-runtime/node
+/opt/trend-runtime/node/bin/node --version
+```
+
+必须输出 `v22.23.2`。这个运行时只供本项目使用，不改变其他服务的Node版本。[Node.js官方Node 22下载目录](https://nodejs.org/download/release/latest-v22.x/)
 
 ## 2. 创建独立用户和目录
 
@@ -36,9 +54,9 @@ sudo id trendexec >/dev/null 2>&1 || sudo useradd --system --home-dir /opt/trend
 sudo test ! -e /opt/trend-executor || { echo '/opt/trend-executor 已存在，请先核对，部署已停止'; exit 1; }
 sudo git clone --branch strategy-review https://github.com/renzhonghua8/binance-supertrend-strategy.git /opt/trend-executor
 sudo chown -R trendexec:trendexec /opt/trend-executor
-sudo -u trendexec npm --prefix /opt/trend-executor/dashboard ci
-sudo -u trendexec npm --prefix /opt/trend-executor/dashboard test
-sudo -u trendexec npm --prefix /opt/trend-executor/dashboard run build
+sudo -u trendexec env PATH=/opt/trend-runtime/node/bin:/usr/bin:/bin /opt/trend-runtime/node/bin/npm --prefix /opt/trend-executor/dashboard ci
+sudo -u trendexec env PATH=/opt/trend-runtime/node/bin:/usr/bin:/bin /opt/trend-runtime/node/bin/npm --prefix /opt/trend-executor/dashboard test
+sudo -u trendexec env PATH=/opt/trend-runtime/node/bin:/usr/bin:/bin /opt/trend-runtime/node/bin/npm --prefix /opt/trend-executor/dashboard run build
 ```
 
 ## 3. 创建三个独立systemd服务
@@ -56,7 +74,8 @@ User=trendexec
 Group=trendexec
 WorkingDirectory=/opt/trend-executor/dashboard
 Environment=NODE_ENV=production
-ExecStart=/usr/bin/npm run start -- --hostname 127.0.0.1 --port 3110
+Environment=PATH=/opt/trend-runtime/node/bin:/usr/bin:/bin
+ExecStart=/opt/trend-runtime/node/bin/npm run start -- --hostname 127.0.0.1 --port 3110
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true
@@ -79,7 +98,7 @@ Group=trendexec
 WorkingDirectory=/opt/trend-executor/dashboard
 Environment=NODE_ENV=production
 Environment=ENGINE_PORT=3111
-ExecStart=/usr/bin/node engine/server.mjs
+ExecStart=/opt/trend-runtime/node/bin/node engine/server.mjs
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true
@@ -104,7 +123,7 @@ Environment=GATEWAY_HOST=127.0.0.1
 Environment=GATEWAY_PORT=3109
 Environment=UI_PORT=3110
 Environment=ENGINE_PORT=3111
-ExecStart=/usr/bin/node engine/gateway.mjs
+ExecStart=/opt/trend-runtime/node/bin/node engine/gateway.mjs
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true
@@ -113,13 +132,6 @@ PrivateTmp=true
 [Install]
 WantedBy=multi-user.target
 EOF
-```
-
-确认Node和npm路径。如果结果不是 `/usr/bin/node` 和 `/usr/bin/npm`，只修改上述新建服务的 `ExecStart`：
-
-```bash
-command -v node
-command -v npm
 ```
 
 ## 4. 只启动本项目服务
