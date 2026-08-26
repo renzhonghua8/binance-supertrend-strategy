@@ -17,6 +17,8 @@ test('dashboard write actions always use POST',async()=>{
  const source=await readFile('app/page.tsx','utf8');
  assert.match(source,/method:'POST'/);
  assert.doesNotMatch(source,/method:body\?'POST':'GET'/);
+ assert.match(source,/高周期合格 · 等待5m突破/);
+ assert.match(source,/入场信号成立/);
 });
 
 test('background polling does not overwrite a newly selected account mode',async()=>{
