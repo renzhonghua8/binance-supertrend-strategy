@@ -120,9 +120,13 @@ test('market reads retry safely and entry locks the first five-period target',as
  assert.match(source,/Math\.min\(sizingPlan\(price,leverage,maxNotionalValue,factor\)\.qty,rules\.maxQty\)/);
  assert.match(source,/request\('\/fapi\/v1\/algoOrder',\{method:'POST'/);
  assert.match(source,/algoType:'CONDITIONAL'/);
- assert.match(source,/triggerPrice:rounded/);
+ assert.match(source,/triggerPrice/);
  assert.match(source,/request\('\/fapi\/v1\/openAlgoOrders'/);
  assert.match(source,/cancelProtectiveOrder/);
+ assert.match(source,/if\(!orderIdToCancel\)\{adoptProtectiveStop\(await createAlgoHardStop\(symbol,rounded\)\);return true\}const previousStop=.*await cancelProtectiveOrder/);
+ assert.match(source,/新硬止损更新失败，已自动恢复原保护单/);
+ assert.match(source,/critical\.protectionLost=true/);
+ assert.match(source,/立即市价退出以避免无保护持仓/);
  assert.match(source,/Number\.isFinite\(p\.markPrice\)\?p\.markPrice:p\.entryPrice/);
  assert.doesNotMatch(source,/type:'STOP_MARKET',stopPrice:/);
  assert.match(source,/validCloseTimes=state\.ranking\.map/);
