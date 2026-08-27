@@ -31,6 +31,9 @@ test('dashboard write actions always use POST',async()=>{
  assert.match(source,/\/api\/live\/snapshot/);
  assert.match(source,/\/api\/live\/auth/);
  assert.match(source,/实盘余额、持仓、日志和所有操作均受访问密码保护/);
+ assert.match(source,/实盘策略运行中/);
+ assert.match(source,/实盘未运行原因/);
+ assert.match(source,/if\(data\.snapshot\)setSnapshot\(channel,data\.snapshot\);if\(!r\.ok\)/);
  assert.doesNotMatch(source,/LIVE_ACCESS_PASSWORD\s*=\s*['"][^'"]+['"]/);
  assert.match(source,/等待5m站上趋势线/);
  assert.match(source,/首位目标合格 ·/);
@@ -41,6 +44,13 @@ test('entry accepts an already-established 5m uptrend',async()=>{
  assert.match(source,/if\(!sig\?\.above\|\|sig\.close<=sig\.line\)return false/);
  assert.doesNotMatch(source,/sig\.previous\.close>sig\.previous\.line/);
  assert.match(source,/state\.last5mCloseTime=null;startClock\(\)/);
+});
+
+test('failed account safety checks cannot report a successful strategy start',async()=>{
+ const source=await readFile('engine/server.mjs','utf8');
+ assert.match(source,/if\(\/多个合约持仓\|空头持仓\/\.test\(e\.message\)\)\{state\.running=false;stopClock\(\)/);
+ assert.match(source,/await tick\(\);if\(!state\.running\)throw new Error\(state\.error\|\|'启动后账户安全检查未通过'\)/);
+ assert.match(source,/账户安全检查未通过，已停止新开仓/);
 });
 
 test('dashboard polls paper and live independently',async()=>{
