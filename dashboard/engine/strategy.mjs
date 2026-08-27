@@ -20,6 +20,12 @@ export function riskLeverage(stopDropPct,maxRiskPct=20){
  return LEVERAGE_LEVELS.find(level=>stopDropPct*level<=maxRiskPct+1e-9)||0;
 }
 
+export function marginBudget(equity,available=equity,reservePct=2){
+ const e=Number(equity),a=Number(available),reserve=Number(reservePct);
+ if(!Number.isFinite(e)||!Number.isFinite(a)||!Number.isFinite(reserve)||e<=0||a<=0||reserve<0||reserve>=100)return 0;
+ return Math.min(e,a)*(1-reserve/100);
+}
+
 export function leveragePlan(sig,livePrice=sig?.close,{maxRiskPct=20,maxTrendDropPct=10,hardStopAtr=1}={}){
  if(!sig||![livePrice,sig.close,sig.line,sig.atr].every(Number.isFinite)||livePrice<=0||sig.atr<=0)return{valid:false,reason:'实时风险数据无效'};
  const distancePct=(sig.close-sig.line)/sig.close*100;

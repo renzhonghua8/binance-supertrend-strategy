@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {readFile} from 'node:fs/promises';
-import {firstFivePeriodTarget,higherRankRotationTarget,riskLeverage,leveragePlan} from './strategy.mjs';
+import {firstFivePeriodTarget,higherRankRotationTarget,riskLeverage,leveragePlan,marginBudget} from './strategy.mjs';
 
 const port=31991;
 let child;
@@ -10,9 +10,15 @@ async function waitForServer(){for(let i=0;i<40;i++){try{const r=await fetch(`ht
 
 test('engine exposes safe default state and validates config',async()=>{
  child=spawn(process.execPath,['engine/server.mjs'],{cwd:process.cwd(),env:{...process.env,ENGINE_PORT:String(port)},stdio:'ignore'});
- try{await waitForServer();const snapshot=await fetch(`http://127.0.0.1:${port}/api/snapshot`).then(r=>r.json());assert.equal(snapshot.connected,false);assert.equal(snapshot.running,false);assert.equal(snapshot.mode,'paper');assert.equal(snapshot.config.maxRiskPct,20);assert.equal(snapshot.config.maxTrendDropPct,10);assert.equal('leverage'in snapshot.config,false);assert.equal('exposure'in snapshot.config,false);
+ try{await waitForServer();const snapshot=await fetch(`http://127.0.0.1:${port}/api/snapshot`).then(r=>r.json());assert.equal(snapshot.connected,false);assert.equal(snapshot.running,false);assert.equal(snapshot.mode,'paper');assert.equal(snapshot.config.maxRiskPct,20);assert.equal(snapshot.config.maxTrendDropPct,10);assert.equal(snapshot.config.marginReservePct,2);assert.equal(snapshot.stats.marginRetries,0);assert.equal('leverage'in snapshot.config,false);assert.equal('exposure'in snapshot.config,false);
  const bad=await fetch(`http://127.0.0.1:${port}/api/config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({maxRiskPct:21})});assert.equal(bad.status,400);
- const good=await fetch(`http://127.0.0.1:${port}/api/config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({maxRiskPct:18,maxTrendDropPct:9,hardStopAtr:1.2})});assert.equal(good.status,200);const result=await good.json();assert.equal(result.snapshot.config.maxRiskPct,18);assert.equal(result.snapshot.config.maxTrendDropPct,9);assert.equal(result.snapshot.config.hardStopAtr,1.2)}finally{child?.kill('SIGINT')}});
+ const good=await fetch(`http://127.0.0.1:${port}/api/config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({maxRiskPct:18,maxTrendDropPct:9,marginReservePct:3,hardStopAtr:1.2})});assert.equal(good.status,200);const result=await good.json();assert.equal(result.snapshot.config.maxRiskPct,18);assert.equal(result.snapshot.config.maxTrendDropPct,9);assert.equal(result.snapshot.config.marginReservePct,3);assert.equal(result.snapshot.config.hardStopAtr,1.2)}finally{child?.kill('SIGINT')}});
+
+test('entry budget uses the lower of equity and available balance with a reserve',()=>{
+ assert.equal(marginBudget(10000,9000,2),8820);
+ assert.equal(marginBudget(10000,12000,2),9800);
+ assert.equal(marginBudget(10000,0,2),0);
+});
 
 test('real-time trend-line risk selects only 10x 8x 6x 4x 2x and caps trend drop at 10%',()=>{
  assert.equal(riskLeverage(2,20),10);assert.equal(riskLeverage(2.01,20),8);assert.equal(riskLeverage(2.5,20),8);assert.equal(riskLeverage(2.51,20),6);assert.equal(riskLeverage(10/3,20),6);assert.equal(riskLeverage(3.34,20),4);assert.equal(riskLeverage(5,20),4);assert.equal(riskLeverage(5.01,20),2);assert.equal(riskLeverage(10,20),2);
@@ -53,6 +59,8 @@ test('dashboard write actions always use POST',async()=>{
  assert.match(source,/首位目标合格 ·/);
  assert.match(source,/更高排名换仓目标/);
  assert.match(source,/自动换仓/);
+ assert.match(source,/下单保证金缓冲/);
+ assert.match(source,/保证金缩量重试/);
 });
 
 test('entry accepts an already-established 5m uptrend',async()=>{
@@ -93,6 +101,11 @@ test('market reads retry safely and entry locks the first five-period target',as
  assert.match(source,/final\.code=lastError\?\.code/);
  assert.match(source,/if\(e\.code!==-4046\)throw e/);
  assert.match(source,/if\(e\.code!==-2011\)/);
+ assert.match(source,/MARGIN_RETRY_FACTORS=\[1,\.97,\.94,\.9,\.85,\.8\]/);
+ assert.match(source,/if\(e\.code!==-2019\)throw e/);
+ assert.match(source,/state\.stats\.marginRetries\+\+/);
+ assert.match(source,/缩量前检测到交易所持仓，停止重试以防重复开仓/);
+ assert.match(source,/marginBudget\(equity,available,config\.marginReservePct\)/);
  assert.match(source,/validCloseTimes=state\.ranking\.map/);
  assert.match(source,/const target=firstFivePeriodTarget\(state\.ranking\)/);
  assert.match(source,/锁定目标 .* 执行失败，保持空仓/);
