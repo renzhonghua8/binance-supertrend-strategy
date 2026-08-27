@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {readFile} from 'node:fs/promises';
-import {riskLeverage,leveragePlan} from './strategy.mjs';
+import {firstFivePeriodTarget,higherRankRotationTarget,riskLeverage,leveragePlan} from './strategy.mjs';
 
 const port=31991;
 let child;
@@ -21,6 +21,20 @@ test('real-time trend-line risk selects only 10x 8x 6x 4x 2x and caps trend drop
  const skipped=leveragePlan({close:100,line:89,atr:1},100,{maxRiskPct:20,maxTrendDropPct:10,hardStopAtr:1});assert.equal(skipped.valid,false);assert.equal(skipped.finalLeverage,0);assert.match(skipped.reason,/趋势线跌幅超过10%/);
 });
 
+test('a higher-ranked five-period target replaces a lower-ranked position without skipping the first target',()=>{
+ const signal={above:true,close:101,line:100,atr:1};
+ const ranking=[
+  {rank:1,symbol:'FIRSTUSDT',eligible:false,signals:{'5m':signal}},
+  {rank:3,symbol:'MAGMAUSDT',eligible:true,signals:{'5m':signal}},
+  {rank:6,symbol:'OTHERUSDT',eligible:true,signals:{'5m':signal}},
+  {rank:10,symbol:'LIGHTUSDT',eligible:true,signals:{'5m':signal}},
+ ];
+ assert.equal(firstFivePeriodTarget(ranking)?.symbol,'MAGMAUSDT');
+ assert.equal(higherRankRotationTarget({symbol:'LIGHTUSDT',rank:10},ranking)?.symbol,'MAGMAUSDT');
+ assert.equal(higherRankRotationTarget({symbol:'MAGMAUSDT',rank:3},ranking),null);
+ assert.equal(higherRankRotationTarget({symbol:'HELDUSDT',rank:2},ranking),null);
+});
+
 test('dashboard write actions always use POST',async()=>{
  const source=await readFile('app/page.tsx','utf8');
  assert.match(source,/fetch\(`\/api\/\$\{channel\}\$\{path\}`/);
@@ -37,6 +51,8 @@ test('dashboard write actions always use POST',async()=>{
  assert.doesNotMatch(source,/LIVE_ACCESS_PASSWORD\s*=\s*['"][^'"]+['"]/);
  assert.match(source,/等待5m站上趋势线/);
  assert.match(source,/首位目标合格 ·/);
+ assert.match(source,/更高排名换仓目标/);
+ assert.match(source,/自动换仓/);
 });
 
 test('entry accepts an already-established 5m uptrend',async()=>{
@@ -78,11 +94,15 @@ test('market reads retry safely and entry locks the first five-period target',as
  assert.match(source,/if\(e\.code!==-4046\)throw e/);
  assert.match(source,/if\(e\.code!==-2011\)/);
  assert.match(source,/validCloseTimes=state\.ranking\.map/);
- assert.match(source,/const target=state\.ranking\.find/);
+ assert.match(source,/const target=firstFivePeriodTarget\(state\.ranking\)/);
  assert.match(source,/锁定目标 .* 执行失败，保持空仓/);
  assert.doesNotMatch(source,/执行失败，继续检查下一名/);
  assert.match(source,/state\.exchangeInfo=tradingInfo/);
  assert.match(source,/Math\.max\(\.\.\.validCloseTimes\)/);
+ assert.match(source,/higherRankRotationTarget\(state\.position,state\.ranking\)/);
+ assert.match(source,/if\(await maybeRotate\(\)\)return/);
+ assert.match(source,/await syncAccount\(\);if\(state\.position\)\{log\('error',`\$\{previous\} 平仓后交易所仍报告持仓/);
+ assert.match(source,/自动换仓完成/);
 });
 
 test('ranking always comes from production futures while testnet support only controls tradability',async()=>{

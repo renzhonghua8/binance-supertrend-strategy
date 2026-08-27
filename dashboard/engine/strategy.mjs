@@ -1,5 +1,20 @@
 export const LEVERAGE_LEVELS=[10,8,6,4,2];
 
+export function isFivePeriodTarget(row){
+ const sig=row?.signals?.['5m'];
+ return Boolean(row?.eligible&&sig?.above&&Number.isFinite(sig.close)&&Number.isFinite(sig.line)&&sig.close>sig.line);
+}
+
+export function firstFivePeriodTarget(ranking=[]){
+ return ranking.find(isFivePeriodTarget)||null;
+}
+
+export function higherRankRotationTarget(position,ranking=[]){
+ if(!position||!Number.isFinite(position.rank))return null;
+ const target=firstFivePeriodTarget(ranking);
+ return target&&target.symbol!==position.symbol&&target.rank<position.rank?target:null;
+}
+
 export function riskLeverage(stopDropPct,maxRiskPct=20){
  if(!Number.isFinite(stopDropPct)||stopDropPct<=0)return 0;
  return LEVERAGE_LEVELS.find(level=>stopDropPct*level<=maxRiskPct+1e-9)||0;
