@@ -1,5 +1,7 @@
 # 服务器部署（外部访问端口 3109）
 
+> 本文保留为旧版单引擎参考。当前版本使用纸面与实盘双引擎；CentOS新部署请看 `CENTOS-DEPLOY.md`，已部署服务器升级请看 `DUAL-CHANNEL-UPGRADE.md`。
+
 推荐使用 Ubuntu/Debian、systemd、Nginx 和 SSH 隧道。Nginx 只监听服务器回环地址 `127.0.0.1:3109`，避免 API Key 通过明文公网传输。
 
 ## 1. 安装依赖并拉取代码

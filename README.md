@@ -8,7 +8,9 @@
 - [待确认决策](REVIEW-CHECKLIST.md)
 - [自动交易系统使用说明](dashboard/README.md)
 
-`dashboard/` 已包含本地自动交易控制台、策略引擎、纸面交易、测试网和实盘分级模式。默认不会连接真实账户，也不会自动启动策略。
+`dashboard/` 已包含双通道自动交易控制台。纸面交易与Binance实盘使用两个隔离引擎，可同时运行，并分别维护连接、仓位、统计、日志和API凭据。默认不会连接真实账户，也不会自动启动策略。
+
+已部署的CentOS服务器升级双通道请使用 [`DUAL-CHANNEL-UPGRADE.md`](./DUAL-CHANNEL-UPGRADE.md)。
 
 ## 重要说明
 

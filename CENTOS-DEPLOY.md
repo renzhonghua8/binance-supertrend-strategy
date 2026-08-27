@@ -4,15 +4,16 @@
 
 - 安全入口：`127.0.0.1:3109`
 - 内部页面：`127.0.0.1:3110`
-- 内部交易引擎：`127.0.0.1:3111`
-- 服务名：`trend-executor-gateway`、`trend-executor-ui`、`trend-executor-engine`
+- 内部纸面引擎：`127.0.0.1:3111`
+- 内部实盘引擎：`127.0.0.1:3112`
+- 服务名：`trend-executor-gateway`、`trend-executor-ui`、`trend-executor-engine`、`trend-executor-live`
 
 ## 1. 只读预检查
 
 ```bash
 cat /etc/centos-release
 git --version || true
-sudo ss -lntp | grep -E ':(3109|3110|3111)\b' || true
+sudo ss -lntp | grep -E ':(3109|3110|3111|3112)\b' || true
 ```
 
 如果最后一条有任何输出，说明端口已被占用。停止部署并更换本项目内部端口，不要结束已有进程。
@@ -35,17 +36,19 @@ case "$(uname -m)" in
   aarch64) NODE_ARCH=arm64 ;;
   *) echo "不支持的CPU架构：$(uname -m)"; exit 1 ;;
 esac
-NODE_FILE="node-${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz"
-curl -fSLO "https://nodejs.org/dist/${NODE_VERSION}/${NODE_FILE}"
-curl -fSLO "https://nodejs.org/dist/${NODE_VERSION}/SHASUMS256.txt"
+test "$NODE_ARCH" = x64 || { echo 'CentOS 7隔离包当前仅支持x86_64'; exit 1; }
+NODE_FILE="node-${NODE_VERSION}-linux-x64-glibc-217.tar.xz"
+NODE_BASE="https://unofficial-builds.nodejs.org/download/release/${NODE_VERSION}"
+curl -fSLO "${NODE_BASE}/${NODE_FILE}"
+curl -fSLO "${NODE_BASE}/SHASUMS256.txt"
 grep " ${NODE_FILE}$" SHASUMS256.txt | sha256sum -c -
 sudo mkdir -p /opt/trend-runtime
 sudo tar -xJf "$NODE_FILE" -C /opt/trend-runtime
-sudo ln -sfn "/opt/trend-runtime/node-${NODE_VERSION}-linux-${NODE_ARCH}" /opt/trend-runtime/node
+sudo ln -sfn "/opt/trend-runtime/node-${NODE_VERSION}-linux-x64-glibc-217" /opt/trend-runtime/node
 /opt/trend-runtime/node/bin/node --version
 ```
 
-必须输出 `v22.23.2`。这个运行时只供本项目使用，不改变其他服务的Node版本。[Node.js官方Node 22下载目录](https://nodejs.org/download/release/latest-v22.x/)
+必须输出 `v22.23.2`。这个glibc 2.17兼容运行时只供本项目使用，不改变系统glibc和其他服务的Node版本。
 
 ## 2. 创建独立用户和目录
 
@@ -59,7 +62,7 @@ sudo -u trendexec env PATH=/opt/trend-runtime/node/bin:/usr/bin:/bin /opt/trend-
 sudo -u trendexec env PATH=/opt/trend-runtime/node/bin:/usr/bin:/bin /opt/trend-runtime/node/bin/npm --prefix /opt/trend-executor/dashboard run build
 ```
 
-## 3. 创建三个独立systemd服务
+## 3. 创建四个独立systemd服务
 
 ```bash
 sudo tee /etc/systemd/system/trend-executor-ui.service >/dev/null <<'EOF'
@@ -87,7 +90,7 @@ EOF
 
 sudo tee /etc/systemd/system/trend-executor-engine.service >/dev/null <<'EOF'
 [Unit]
-Description=Trend Executor Engine
+Description=Trend Executor Paper Engine
 After=network-online.target
 Wants=network-online.target
 
@@ -97,7 +100,33 @@ User=trendexec
 Group=trendexec
 WorkingDirectory=/opt/trend-executor/dashboard
 Environment=NODE_ENV=production
+Environment=ENGINE_MODE=paper
 Environment=ENGINE_PORT=3111
+ExecStart=/opt/trend-runtime/node/bin/node engine/server.mjs
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo tee /etc/systemd/system/trend-executor-live.service >/dev/null <<'EOF'
+[Unit]
+Description=Trend Executor Live Engine
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=trendexec
+Group=trendexec
+WorkingDirectory=/opt/trend-executor/dashboard
+Environment=NODE_ENV=production
+Environment=ENGINE_MODE=live
+Environment=ENGINE_PORT=3112
+Environment=PATH=/opt/trend-runtime/node/bin:/usr/bin:/bin
 ExecStart=/opt/trend-runtime/node/bin/node engine/server.mjs
 Restart=on-failure
 RestartSec=5
@@ -111,8 +140,8 @@ EOF
 sudo tee /etc/systemd/system/trend-executor-gateway.service >/dev/null <<'EOF'
 [Unit]
 Description=Trend Executor Private Gateway
-After=trend-executor-ui.service trend-executor-engine.service
-Requires=trend-executor-ui.service trend-executor-engine.service
+After=trend-executor-ui.service trend-executor-engine.service trend-executor-live.service
+Requires=trend-executor-ui.service trend-executor-engine.service trend-executor-live.service
 
 [Service]
 Type=simple
@@ -122,7 +151,8 @@ WorkingDirectory=/opt/trend-executor/dashboard
 Environment=GATEWAY_HOST=127.0.0.1
 Environment=GATEWAY_PORT=3109
 Environment=UI_PORT=3110
-Environment=ENGINE_PORT=3111
+Environment=PAPER_ENGINE_PORT=3111
+Environment=LIVE_ENGINE_PORT=3112
 ExecStart=/opt/trend-runtime/node/bin/node engine/gateway.mjs
 Restart=on-failure
 RestartSec=5
@@ -138,10 +168,11 @@ EOF
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now trend-executor-ui trend-executor-engine trend-executor-gateway
-sudo systemctl status trend-executor-ui trend-executor-engine trend-executor-gateway --no-pager
+sudo systemctl enable --now trend-executor-ui trend-executor-engine trend-executor-live trend-executor-gateway
+sudo systemctl status trend-executor-ui trend-executor-engine trend-executor-live trend-executor-gateway --no-pager
 curl -I http://127.0.0.1:3109/
-curl http://127.0.0.1:3109/api/snapshot
+curl http://127.0.0.1:3109/api/paper/snapshot
+curl http://127.0.0.1:3109/api/live/snapshot
 ```
 
 这些命令不会重启Nginx、Docker、数据库或其他已有服务。
@@ -164,6 +195,7 @@ http://localhost:3109
 
 ```bash
 sudo journalctl -u trend-executor-engine -f
+sudo journalctl -u trend-executor-live -f
 sudo journalctl -u trend-executor-ui -f
 sudo journalctl -u trend-executor-gateway -f
 ```
@@ -171,7 +203,7 @@ sudo journalctl -u trend-executor-gateway -f
 只停止本项目：
 
 ```bash
-sudo systemctl stop trend-executor-gateway trend-executor-engine trend-executor-ui
+sudo systemctl stop trend-executor-gateway trend-executor-live trend-executor-engine trend-executor-ui
 ```
 
 服务重启后API Key会从内存清除，策略不会自动恢复交易。需要重新通过页面连接账户并启动策略。

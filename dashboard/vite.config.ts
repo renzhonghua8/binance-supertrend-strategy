@@ -47,7 +47,10 @@ export default defineConfig(async () => {
   return {
     css: { postcss: { plugins: [tailwindcss()] } },
     server: {
-      proxy: { '/api': 'http://127.0.0.1:3001' },
+      proxy: {
+        '/api/paper': {target:'http://127.0.0.1:3001',rewrite:path=>path.replace(/^\/api\/paper/,'/api')},
+        '/api/live': {target:'http://127.0.0.1:3002',rewrite:path=>path.replace(/^\/api\/live/,'/api')},
+      },
       ...(isCodexSeatbeltSandbox
         ? { watch: { useFsEvents: false, usePolling: true } }
         : {}),

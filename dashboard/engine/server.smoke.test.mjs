@@ -23,10 +23,11 @@ test('real-time trend-line risk selects only 10x 8x 6x 4x 2x and caps trend drop
 
 test('dashboard write actions always use POST',async()=>{
  const source=await readFile('app/page.tsx','utf8');
- assert.match(source,/const API='\/api'/);
+ assert.match(source,/fetch\(`\/api\/\$\{channel\}\$\{path\}`/);
  assert.doesNotMatch(source,/localhost:3001\/api/);
  assert.match(source,/method:'POST'/);
- assert.doesNotMatch(source,/method:body\?'POST':'GET'/);
+ assert.match(source,/纸面与实盘可同时启动/);
+ assert.match(source,/\/api\/\$\{channel\}\/snapshot/);
  assert.match(source,/等待5m站上趋势线/);
  assert.match(source,/首位目标合格 ·/);
 });
@@ -38,10 +39,18 @@ test('entry accepts an already-established 5m uptrend',async()=>{
  assert.match(source,/state\.last5mCloseTime=null;startClock\(\)/);
 });
 
-test('background polling does not overwrite a newly selected account mode',async()=>{
+test('dashboard polls paper and live independently',async()=>{
  const source=await readFile('app/page.tsx','utf8');
- assert.match(source,/if\(!initialized\.current\)/);
- assert.doesNotMatch(source,/setS\(d\);setMode\(d\.mode\);setParams/);
+ assert.match(source,/Promise\.allSettled/);
+ assert.match(source,/\['paper','live'\] as Channel\[\]/);
+ assert.match(source,/setSnapshot\(channel,data\)/);
+ assert.match(source,/纸面与实盘统计完全隔离/);
+});
+
+test('locked engines reject cross-mode connections and gateway keeps channels separate',async()=>{
+ const lockedPort=31992,locked=spawn(process.execPath,['engine/server.mjs'],{cwd:process.cwd(),env:{...process.env,ENGINE_PORT:String(lockedPort),ENGINE_MODE:'live'},stdio:'ignore'});
+ try{for(let i=0;i<40;i++){try{const r=await fetch(`http://127.0.0.1:${lockedPort}/api/snapshot`);if(r.ok)break}catch{}await new Promise(r=>setTimeout(r,100))}const snapshot=await fetch(`http://127.0.0.1:${lockedPort}/api/snapshot`).then(r=>r.json());assert.equal(snapshot.mode,'live');assert.equal(snapshot.lockedMode,'live');const wrong=await fetch(`http://127.0.0.1:${lockedPort}/api/connect`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'paper'})});assert.equal(wrong.status,400);assert.match((await wrong.json()).error,/锁定为实盘/)}finally{locked.kill('SIGINT')}
+ const gateway=await readFile('engine/gateway.mjs','utf8');assert.match(gateway,/PAPER_ENGINE_PORT/);assert.match(gateway,/LIVE_ENGINE_PORT/);assert.match(gateway,/\/api\/paper\//);assert.match(gateway,/\/api\/live\//);
 });
 
 test('market reads retry safely and entry locks the first five-period target',async()=>{

@@ -6,9 +6,11 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "dev": "concurrently --kill-others --names UI,ENGINE --prefix-colors cyan,green \"vinext dev\" \"node engine/server.mjs\"",
+    "dev": "concurrently --kill-others --names UI,PAPER,LIVE --prefix-colors cyan,green,red \"vinext dev\" \"ENGINE_MODE=paper ENGINE_PORT=3001 node engine/server.mjs\" \"ENGINE_MODE=live ENGINE_PORT=3002 node engine/server.mjs\"",
     "dev:ui": "vinext dev",
-    "engine": "node engine/server.mjs",
+    "engine": "ENGINE_MODE=paper node engine/server.mjs",
+    "engine:paper": "ENGINE_MODE=paper ENGINE_PORT=3001 node engine/server.mjs",
+    "engine:live": "ENGINE_MODE=live ENGINE_PORT=3002 node engine/server.mjs",
     "gateway": "node engine/gateway.mjs",
     "test": "node --test engine/server.smoke.test.mjs",
     "build": "vinext build",
