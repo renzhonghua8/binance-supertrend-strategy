@@ -103,6 +103,9 @@ test('market reads retry safely and entry locks the first five-period target',as
  assert.match(source,/if\(await maybeRotate\(\)\)return/);
  assert.match(source,/await syncAccount\(\);if\(state\.position\)\{log\('error',`\$\{previous\} 平仓后交易所仍报告持仓/);
  assert.match(source,/自动换仓完成/);
+ assert.match(source,/async function exitAndRescan\(reason\)\{await closePosition\(reason\);if\(state\.running&&!state\.position\)/);
+ assert.match(source,/if\(!rank\)\{await exitAndRescan\('跌出涨幅榜前10'\);return\}/);
+ assert.match(source,/退出后立即重新扫描首位目标/);
 });
 
 test('ranking always comes from production futures while testnet support only controls tradability',async()=>{
