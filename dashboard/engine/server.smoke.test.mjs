@@ -74,6 +74,9 @@ test('live access protection is server-side, expiring and rate limited',async()=
 test('market reads retry safely and entry locks the first five-period target',async()=>{
  const source=await readFile('engine/server.mjs','utf8');
  assert.match(source,/maxAttempts=method==='GET'&&!signed\?3:1/);
+ assert.match(source,/final\.code=lastError\?\.code/);
+ assert.match(source,/if\(e\.code!==-4046\)throw e/);
+ assert.match(source,/if\(e\.code!==-2011\)/);
  assert.match(source,/validCloseTimes=state\.ranking\.map/);
  assert.match(source,/const target=state\.ranking\.find/);
  assert.match(source,/锁定目标 .* 执行失败，保持空仓/);
