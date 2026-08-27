@@ -82,6 +82,20 @@ EOF
 
 ## 新增实盘引擎
 
+先在服务器交互式设置访问密码。输入内容不会显示，也不会进入Shell历史：
+
+```bash
+install -d -m 700 /etc/trend-executor
+install -m 600 /dev/null /etc/trend-executor/live.env
+read -r -s -p '请输入实盘访问密码: ' TREND_LIVE_PASSWORD
+printf '\n'
+printf 'LIVE_ACCESS_PASSWORD=%s\n' "$TREND_LIVE_PASSWORD" > /etc/trend-executor/live.env
+unset TREND_LIVE_PASSWORD
+chmod 600 /etc/trend-executor/live.env
+```
+
+不要把密码直接写进systemd服务、GitHub仓库或命令历史。
+
 ```bash
 tee /etc/systemd/system/trend-executor-live.service >/dev/null <<'EOF'
 [Unit]
@@ -97,6 +111,8 @@ WorkingDirectory=/opt/trend-executor/dashboard
 Environment=NODE_ENV=production
 Environment=ENGINE_MODE=live
 Environment=ENGINE_PORT=3112
+Environment=LIVE_COOKIE_SECURE=false
+EnvironmentFile=/etc/trend-executor/live.env
 Environment=PATH=/opt/trend-runtime/node/bin:/usr/bin:/bin
 ExecStart=/opt/trend-runtime/node/bin/node engine/server.mjs
 Restart=on-failure
@@ -166,6 +182,13 @@ curl -I http://127.0.0.1:3109/
 预期：纸面接口返回 `"mode":"paper"`，实盘接口返回 `"mode":"live"`，页面返回 `HTTP 200`。
 
 升级后刷新 `http://服务器公网IP:3109`，分别启用纸面账户和连接实盘账户，再独立点击两个“启动”按钮。服务重启后两套策略默认都不会自动交易。
+
+当前直接使用HTTP公网访问时，访问密码和API Key在传输过程中没有TLS加密。配置Nginx HTTPS之前不要连接实盘。HTTPS启用后，把实盘服务中的 `LIVE_COOKIE_SECURE=false` 改成 `LIVE_COOKIE_SECURE=true`，再执行：
+
+```bash
+systemctl daemon-reload
+systemctl restart trend-executor-live
+```
 
 查看日志：
 

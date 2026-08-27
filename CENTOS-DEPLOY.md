@@ -112,6 +112,14 @@ PrivateTmp=true
 WantedBy=multi-user.target
 EOF
 
+sudo install -d -m 700 /etc/trend-executor
+sudo install -m 600 /dev/null /etc/trend-executor/live.env
+read -r -s -p '请输入实盘访问密码: ' TREND_LIVE_PASSWORD
+printf '\n'
+printf 'LIVE_ACCESS_PASSWORD=%s\n' "$TREND_LIVE_PASSWORD" | sudo tee /etc/trend-executor/live.env >/dev/null
+unset TREND_LIVE_PASSWORD
+sudo chmod 600 /etc/trend-executor/live.env
+
 sudo tee /etc/systemd/system/trend-executor-live.service >/dev/null <<'EOF'
 [Unit]
 Description=Trend Executor Live Engine
@@ -126,6 +134,8 @@ WorkingDirectory=/opt/trend-executor/dashboard
 Environment=NODE_ENV=production
 Environment=ENGINE_MODE=live
 Environment=ENGINE_PORT=3112
+Environment=LIVE_COOKIE_SECURE=false
+EnvironmentFile=/etc/trend-executor/live.env
 Environment=PATH=/opt/trend-runtime/node/bin:/usr/bin:/bin
 ExecStart=/opt/trend-runtime/node/bin/node engine/server.mjs
 Restart=on-failure

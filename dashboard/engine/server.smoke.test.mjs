@@ -27,7 +27,11 @@ test('dashboard write actions always use POST',async()=>{
  assert.doesNotMatch(source,/localhost:3001\/api/);
  assert.match(source,/method:'POST'/);
  assert.match(source,/纸面与实盘可同时启动/);
- assert.match(source,/\/api\/\$\{channel\}\/snapshot/);
+ assert.match(source,/\/api\/paper\/snapshot/);
+ assert.match(source,/\/api\/live\/snapshot/);
+ assert.match(source,/\/api\/live\/auth/);
+ assert.match(source,/实盘余额、持仓、日志和所有操作均受访问密码保护/);
+ assert.doesNotMatch(source,/LIVE_ACCESS_PASSWORD\s*=\s*['"][^'"]+['"]/);
  assert.match(source,/等待5m站上趋势线/);
  assert.match(source,/首位目标合格 ·/);
 });
@@ -41,16 +45,20 @@ test('entry accepts an already-established 5m uptrend',async()=>{
 
 test('dashboard polls paper and live independently',async()=>{
  const source=await readFile('app/page.tsx','utf8');
- assert.match(source,/Promise\.allSettled/);
- assert.match(source,/\['paper','live'\] as Channel\[\]/);
- assert.match(source,/setSnapshot\(channel,data\)/);
+ assert.match(source,/Promise\.all\(\[fetch\('\/api\/paper\/snapshot'\),fetch\('\/api\/live\/auth\/status'\)\]\)/);
+ assert.match(source,/if\(auth\.authenticated\)/);
+ assert.match(source,/setLive\(await liveResponse\.json\(\)\)/);
  assert.match(source,/纸面与实盘统计完全隔离/);
 });
 
 test('locked engines reject cross-mode connections and gateway keeps channels separate',async()=>{
- const lockedPort=31992,locked=spawn(process.execPath,['engine/server.mjs'],{cwd:process.cwd(),env:{...process.env,ENGINE_PORT:String(lockedPort),ENGINE_MODE:'live'},stdio:'ignore'});
- try{for(let i=0;i<40;i++){try{const r=await fetch(`http://127.0.0.1:${lockedPort}/api/snapshot`);if(r.ok)break}catch{}await new Promise(r=>setTimeout(r,100))}const snapshot=await fetch(`http://127.0.0.1:${lockedPort}/api/snapshot`).then(r=>r.json());assert.equal(snapshot.mode,'live');assert.equal(snapshot.lockedMode,'live');const wrong=await fetch(`http://127.0.0.1:${lockedPort}/api/connect`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'paper'})});assert.equal(wrong.status,400);assert.match((await wrong.json()).error,/锁定为实盘/)}finally{locked.kill('SIGINT')}
+ const lockedPort=31992,locked=spawn(process.execPath,['engine/server.mjs'],{cwd:process.cwd(),env:{...process.env,ENGINE_PORT:String(lockedPort),ENGINE_MODE:'live',LIVE_ACCESS_PASSWORD:'test-access-password'},stdio:'ignore'});
+ try{for(let i=0;i<40;i++){try{const r=await fetch(`http://127.0.0.1:${lockedPort}/api/auth/status`);if(r.ok)break}catch{}await new Promise(r=>setTimeout(r,100))}const status=await fetch(`http://127.0.0.1:${lockedPort}/api/auth/status`).then(r=>r.json());assert.equal(status.configured,true);assert.equal(status.authenticated,false);const denied=await fetch(`http://127.0.0.1:${lockedPort}/api/snapshot`);assert.equal(denied.status,401);const badLogin=await fetch(`http://127.0.0.1:${lockedPort}/api/auth`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:'wrong'})});assert.equal(badLogin.status,401);const login=await fetch(`http://127.0.0.1:${lockedPort}/api/auth`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:'test-access-password'})});assert.equal(login.status,200);const cookie=login.headers.get('set-cookie');assert.match(cookie,/live_session=/);assert.match(cookie,/HttpOnly/);assert.match(cookie,/SameSite=Strict/);const snapshotResponse=await fetch(`http://127.0.0.1:${lockedPort}/api/snapshot`,{headers:{Cookie:cookie}});assert.equal(snapshotResponse.status,200);const snapshot=await snapshotResponse.json();assert.equal(snapshot.mode,'live');assert.equal(snapshot.lockedMode,'live');const wrong=await fetch(`http://127.0.0.1:${lockedPort}/api/connect`,{method:'POST',headers:{'Content-Type':'application/json',Cookie:cookie},body:JSON.stringify({mode:'paper'})});assert.equal(wrong.status,400);assert.match((await wrong.json()).error,/锁定为实盘/);const logout=await fetch(`http://127.0.0.1:${lockedPort}/api/auth/logout`,{method:'POST',headers:{Cookie:cookie}});assert.equal(logout.status,200);assert.equal((await fetch(`http://127.0.0.1:${lockedPort}/api/snapshot`,{headers:{Cookie:cookie}})).status,401)}finally{locked.kill('SIGINT')}
  const gateway=await readFile('engine/gateway.mjs','utf8');assert.match(gateway,/PAPER_ENGINE_PORT/);assert.match(gateway,/LIVE_ENGINE_PORT/);assert.match(gateway,/\/api\/paper\//);assert.match(gateway,/\/api\/live\//);
+});
+
+test('live access protection is server-side, expiring and rate limited',async()=>{
+ const source=await readFile('engine/server.mjs','utf8');assert.match(source,/LIVE_SESSION_TTL_MS=8\*60\*60\*1000/);assert.match(source,/LIVE_FAILURE_LIMIT=5/);assert.match(source,/timingSafeEqual/);assert.match(source,/HttpOnly; SameSite=Strict/);assert.match(source,/liveAuthRequired\(\)&&!liveSession\(req\)/);assert.doesNotMatch(source,/LIVE_ACCESS_PASSWORD\s*=\s*['"][^'"]+['"]/);
 });
 
 test('market reads retry safely and entry locks the first five-period target',async()=>{

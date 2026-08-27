@@ -11,7 +11,7 @@ const server=http.createServer((req,res)=>{
  if(original.startsWith('/api/paper/')){targetPort=PAPER_ENGINE_PORT;path=original.replace('/api/paper/','/api/')}
  else if(original.startsWith('/api/live/')){targetPort=LIVE_ENGINE_PORT;path=original.replace('/api/live/','/api/')}
  else if(original.startsWith('/api/'))targetPort=PAPER_ENGINE_PORT;
- const upstream=http.request({hostname:'127.0.0.1',port:targetPort,path,method:req.method,headers:{...req.headers,host:`127.0.0.1:${targetPort}`}},upstreamRes=>{
+ const upstream=http.request({hostname:'127.0.0.1',port:targetPort,path,method:req.method,headers:{...req.headers,host:`127.0.0.1:${targetPort}`,'x-forwarded-for':req.socket.remoteAddress||''}},upstreamRes=>{
   res.writeHead(upstreamRes.statusCode||502,upstreamRes.headers);
   upstreamRes.pipe(res);
  });
