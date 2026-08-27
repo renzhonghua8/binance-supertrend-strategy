@@ -26,6 +26,16 @@ export function marginBudget(equity,available=equity,reservePct=2){
  return Math.min(e,a)*(1-reserve/100);
 }
 
+export function positionNotionalPlan(equity,available,leverage,maxNotionalValue=Infinity,reservePct=2,factor=1){
+ const leverageValue=Number(leverage),reserve=Number(reservePct),retryFactor=Number(factor);
+ const validSizing=Number.isFinite(leverageValue)&&leverageValue>0&&Number.isFinite(reserve)&&reserve>=0&&reserve<100&&Number.isFinite(retryFactor)&&retryFactor>0&&retryFactor<=1;
+ const capitalLimitNotional=validSizing?marginBudget(equity,available,reserve)*leverageValue:0;
+ const exchangeLimitRaw=Number(maxNotionalValue);
+ const exchangeLimitNotional=Number.isFinite(exchangeLimitRaw)&&exchangeLimitRaw>0?exchangeLimitRaw*(1-reserve/100):Infinity;
+ const targetNotional=validSizing?Math.max(0,Math.min(capitalLimitNotional,exchangeLimitNotional)*retryFactor):0;
+ return{targetNotional,capitalLimitNotional,exchangeLimitNotional,cappedByExchange:Number.isFinite(exchangeLimitNotional)&&exchangeLimitNotional<capitalLimitNotional};
+}
+
 export function leveragePlan(sig,livePrice=sig?.close,{maxRiskPct=20,maxTrendDropPct=10,hardStopAtr=1}={}){
  if(!sig||![livePrice,sig.close,sig.line,sig.atr].every(Number.isFinite)||livePrice<=0||sig.atr<=0)return{valid:false,reason:'实时风险数据无效'};
  const distancePct=(sig.close-sig.line)/sig.close*100;

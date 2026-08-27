@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {readFile} from 'node:fs/promises';
-import {firstFivePeriodTarget,higherRankRotationTarget,riskLeverage,leveragePlan,marginBudget} from './strategy.mjs';
+import {firstFivePeriodTarget,higherRankRotationTarget,riskLeverage,leveragePlan,marginBudget,positionNotionalPlan} from './strategy.mjs';
 
 const port=31991;
 let child;
@@ -18,6 +18,11 @@ test('entry budget uses the lower of equity and available balance with a reserve
  assert.equal(marginBudget(10000,9000,2),8820);
  assert.equal(marginBudget(10000,12000,2),9800);
  assert.equal(marginBudget(10000,0,2),0);
+ const capped=positionNotionalPlan(10000,9000,10,50000,2);assert.equal(capped.capitalLimitNotional,88200);assert.equal(capped.exchangeLimitNotional,49000);assert.equal(capped.targetNotional,49000);assert.equal(capped.cappedByExchange,true);
+ const uncapped=positionNotionalPlan(10000,9000,10,100000,2);assert.equal(uncapped.targetNotional,88200);assert.equal(uncapped.cappedByExchange,false);
+ assert.equal(positionNotionalPlan(10000,9000,10,50000,2,.8).targetNotional,39200);
+ assert.equal(positionNotionalPlan(10000,9000,0,50000,2).targetNotional,0);
+ assert.equal(positionNotionalPlan(10000,9000,10,50000,2,1.1).targetNotional,0);
 });
 
 test('real-time trend-line risk selects only 10x 8x 6x 4x 2x and caps trend drop at 10%',()=>{
@@ -61,6 +66,8 @@ test('dashboard write actions always use POST',async()=>{
  assert.match(source,/自动换仓/);
  assert.match(source,/下单保证金缓冲/);
  assert.match(source,/保证金缩量重试/);
+ assert.match(source,/实际入场名义价值/);
+ assert.match(source,/该杠杆交易所上限/);
 });
 
 test('entry accepts an already-established 5m uptrend',async()=>{
@@ -100,12 +107,24 @@ test('market reads retry safely and entry locks the first five-period target',as
  assert.match(source,/maxAttempts=method==='GET'&&!signed\?3:1/);
  assert.match(source,/final\.code=lastError\?\.code/);
  assert.match(source,/if\(e\.code!==-4046\)throw e/);
- assert.match(source,/if\(e\.code!==-2011\)/);
+ assert.match(source,/\[-2011,-2013\]\.includes\(e\.code\)/);
  assert.match(source,/MARGIN_RETRY_FACTORS=\[1,\.97,\.94,\.9,\.85,\.8\]/);
- assert.match(source,/if\(e\.code!==-2019\)throw e/);
+ assert.match(source,/\[-2019,-2027\]\.includes\(e\.code\)/);
  assert.match(source,/state\.stats\.marginRetries\+\+/);
  assert.match(source,/缩量前检测到交易所持仓，停止重试以防重复开仓/);
- assert.match(source,/marginBudget\(equity,available,config\.marginReservePct\)/);
+ assert.match(source,/request\('\/fapi\/v1\/leverageBracket'/);
+ assert.match(source,/maxNotionalValue=Number\(result\.maxNotionalValue\)/);
+ assert.match(source,/positionNotionalPlan\(equity,available,leverage,maxNotionalValue,config\.marginReservePct,factor\)/);
+ assert.match(source,/超过交易所上限，已压缩至/);
+ assert.match(source,/maxQty:Number\(marketLot\?\.maxQty/);
+ assert.match(source,/Math\.min\(sizingPlan\(price,leverage,maxNotionalValue,factor\)\.qty,rules\.maxQty\)/);
+ assert.match(source,/request\('\/fapi\/v1\/algoOrder',\{method:'POST'/);
+ assert.match(source,/algoType:'CONDITIONAL'/);
+ assert.match(source,/triggerPrice:rounded/);
+ assert.match(source,/request\('\/fapi\/v1\/openAlgoOrders'/);
+ assert.match(source,/cancelProtectiveOrder/);
+ assert.match(source,/Number\.isFinite\(p\.markPrice\)\?p\.markPrice:p\.entryPrice/);
+ assert.doesNotMatch(source,/type:'STOP_MARKET',stopPrice:/);
  assert.match(source,/validCloseTimes=state\.ranking\.map/);
  assert.match(source,/const target=firstFivePeriodTarget\(state\.ranking\)/);
  assert.match(source,/锁定目标 .* 执行失败，保持空仓/);
